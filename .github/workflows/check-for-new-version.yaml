@@ -34,7 +34,7 @@ jobs:
         run: |
           release=$(yq '.parts.mimir["source-tag"]' rockcraft.yaml)          
           if [ "${release}" != "${{steps.latest-release.outputs.release}}" ]; then
-            echo "release=${steps.latest-release.outputs.release}" >> $GITHUB_OUTPUT
+            echo "release=${{steps.latest-release.outputs.release}}" >> $GITHUB_OUTPUT
             echo "New upstream release ${{steps.latest-release.outputs.release}} found"
           else
             echo "No new upstream release found"
