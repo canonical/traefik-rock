@@ -1,23 +1,19 @@
-name: mimir 
-summary: Grafana Mimir in a ROCK. 
-description: |
-    Grafana Mimir is a horizontally scalable, 
-    highly available, multi-tenant, long-term 
-    storage for Prometheus.
-version: "2.3.0"
+name: mimir
+summary: Grafana Mimir in a ROCK.
+description: "Grafana Mimir is a horizontally scalable, \nhighly available, multi-tenant, long-term \nstorage for Prometheus.\n"
+version: "2.4.0"
 base: ubuntu:22.04
 license: Apache-2.0
-cmd: [ "/bin/mimir" ]
+cmd: ["/bin/mimir"]
 platforms:
-  amd64: 
-
+  amd64:
 parts:
   mimir:
     plugin: go
     source: https://github.com/grafana/mimir
     source-type: git
-    source-tag: "mimir-2.3.0"
-    build-snaps: 
+    source-tag: "mimir-2.4.0"
+    build-snaps:
       - go
     build-environment:
       - BUILD_IN_CONTAINER: "false"
