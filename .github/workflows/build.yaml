@@ -1,7 +1,9 @@
 name: Build ROCK
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   main:
