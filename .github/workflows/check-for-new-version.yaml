@@ -44,7 +44,7 @@ jobs:
         if: ${{ steps.check.outputs.release != '' }}
         shell: bash
         run: |
-          version = "${{steps.latest-release.outputs.release}}"
+          version="${{steps.latest-release.outputs.release}}"
           yq '.version = strenv(version) | .parts.mimir["source-tag"] = "mimir-" + strenv(version)")' rockcraft.yaml > rockcraft.yaml
 
       - name: Create a PR
