@@ -31,17 +31,9 @@ jobs:
       - id: check
         name: Check for new releases
         run: |
-          release=$(yq .version rockcraft.yaml)
-          
-          if [ "$release" != "2.4.0" ]; then
-          
-            echo "New upstream release ${{steps.latest-release.outputs.release}} found"
-          else
-            echo "No new upstream release found"
-          fi
-          
+          release=$(yq .version rockcraft.yaml)          
           if [ "${release}" != "${{steps.latest-release.outputs.release}}" ]; then
-            echo "::set-output name=release::${release}"
+            echo "release=${release}" >> $GITHUB_OUTPUT
             echo "New upstream release ${{steps.latest-release.outputs.release}} found"
           else
             echo "No new upstream release found"
