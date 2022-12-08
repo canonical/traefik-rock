@@ -32,7 +32,7 @@ jobs:
         name: Check for new releases
         shell: bash
         run: |
-          release=$(yq .version rockcraft.yaml)          
+          release=$(yq '.parts.mimir[""]' rockcraft.yaml)          
           if [ "${release}" != "${{steps.latest-release.outputs.release}}" ]; then
             echo "release=${steps.latest-release.outputs.release}" >> $GITHUB_OUTPUT
             echo "New upstream release ${{steps.latest-release.outputs.release}} found"
@@ -44,7 +44,8 @@ jobs:
         if: ${{ steps.check.outputs.release != '' }}
         shell: bash
         run: |
-          version="${{steps.check.outputs.release}}" \
+          full_version="${{steps.check.outputs.release}}"
+          version=${full_version#"mimir-"} \
           yq '.version = strenv(version) | .parts.mimir["source-tag"] = "mimir-" + strenv(version)' rockcraft.yaml > rockcraft.yaml
 
       - name: Create a PR
