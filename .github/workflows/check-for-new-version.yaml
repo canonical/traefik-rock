@@ -49,6 +49,7 @@ jobs:
           yq '.version = strenv(version) | .parts.mimir["source-tag"] = "mimir-" + strenv(version)' rockcraft.yaml > rockcraft.yaml
 
       - name: Create a PR
+        if: ${{ steps.check.outputs.release != '' }}
         uses: peter-evans/create-pull-request@v4.2.3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
