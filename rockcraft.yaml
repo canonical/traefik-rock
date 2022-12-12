@@ -19,8 +19,12 @@ parts:
       - BUILD_IN_CONTAINER: "false"
     override-build: |
       make dist
-      mkdir -p /root/parts/mimir/install/bin
-      mv /root/parts/mimir/build/dist/metaconvert-linux-amd64 /root/parts/mimir/install/bin/metaconvert
-      mv /root/parts/mimir/build/dist/mimir-linux-amd64 /root/parts/mimir/install/bin/mimir
-      mv /root/parts/mimir/build/dist/mimirtool-linux-amd64 /root/parts/mimir/install/bin/mimirtool
-      mv /root/parts/mimir/build/dist/query-tee-linux-amd64 /root/parts/mimir/install/bin/query-tee
+      install -D -m755 dist/metaconvert-linux-amd64 ${CRAFT_PART_INSTALL}/opt/mimir/bin/metaconvert
+      install -D -m755 dist/mimir-linux-amd64 ${CRAFT_PART_INSTALL}/opt/mimir/bin/mimir
+      install -D -m755 dist/mimirtool-linux-amd64 ${CRAFT_PART_INSTALL}/opt/mimir/bin/mimirtool
+      install -D -m755 dist/query-tee-linux-amd64 ${CRAFT_PART_INSTALL}/opt/mimir/bin/query-tee
+    organize:
+      opt/mimir/bin/metaconvert: usr/bin/metaconvert
+      opt/mimir/bin/mimir: usr/bin/mimir
+      opt/mimir/bin/mimirtool: usr/bin/mimirtool
+      opt/mimir/bin/query-tee: usr/bin/query-tee
