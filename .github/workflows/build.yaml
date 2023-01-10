@@ -32,14 +32,14 @@ jobs:
     
     - name: Upload ROCK to ghcr.io
       run: |
-        sudo skopeo --insecure-policy copy oci-archive:mimir_*_amd64.rock docker://ghcr.io/canonical/mimir:latest --dest-creds "${{ secrets.GHCR_USERNAME }}:${{ secrets.GHCR_PASSWORD }}"
+        sudo skopeo --insecure-policy copy oci-archive:$(realpath ./mimir_*.rock) docker://ghcr.io/canonical/mimir:latest --dest-creds "${{ secrets.GHCR_USERNAME }}:${{ secrets.GHCR_PASSWORD }}"
     
     - name: Install Syft
       run: |
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
     - name: Create SBOM
-      run: syft ./mimir_*.rock -o spdx-json=mimir.sbom.json
+      run: syft $(realpath ./mimir_*.rock) -o spdx-json=mimir.sbom.json
     
     - name: Upload SBOM
       uses: actions/upload-artifact@v3
