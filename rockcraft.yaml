@@ -5,7 +5,15 @@ version: "2.9.6"
 base: ubuntu:22.04
 license: Apache-2.0
 
-cmd: ["/bin/traefik"]
+# /
+# ├── bin
+# │   └── traefik
+# └── etc
+#     └── traefik.yaml
+
+
+entrypoint: ["/bin/traefik"]
+#cmd: ["/traefik"]
 
 platforms:
   amd64:
@@ -33,6 +41,14 @@ parts:
       npm run build:nc && \
       # cleanup
       rm -rf node_modules
+
+  default-config:
+    plugin: dump
+    source: files
+    organize:
+      traefik.yaml: etc/traefik/traefik.yaml
+    stage:
+      - etc/traefik/traefik.yaml
 
   traefik:
     plugin: go
@@ -64,8 +80,11 @@ parts:
     after:
       - traefik-frontend
 
+    organize:
+      traefik: bin/traefik
+
     stage:
-      - traefik
+      - bin/traefik
 
     # TODO: check alertmanager rock for verification
     # TODO verification steps and testing framework
