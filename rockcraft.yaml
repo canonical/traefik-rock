@@ -1,30 +1,71 @@
-name: mimir
-summary: Grafana Mimir in a ROCK.
-description: "Grafana Mimir is a horizontally scalable, \nhighly available, multi-tenant, long-term \nstorage for Prometheus.\n"
-version: "2.5.0"
+name: traefik
+summary: Traefik in a ROCK.
+description: "Traefik is the a cloud-native application networking stack."
+version: "2.9.6"
 base: ubuntu:22.04
 license: Apache-2.0
-cmd: ["/bin/mimir"]
+
+cmd: ["/bin/traefik"]
+
 platforms:
   amd64:
+
+
 parts:
-  mimir:
-    plugin: go
-    source: https://github.com/grafana/mimir
+  traefik-frontend:
+    plugin: npm
     source-type: git
-    source-tag: "mimir-2.5.0"
+    source-depth: 1
+    source-tag: "v2.9.6"
+    source: https://github.com/traefik/traefik
+
+    npm-node-version: 14.16
+    build-packages:
+      - nodejs
+      - npm
+    override-build: |
+      npm install -g yarn && \
+      cd ./webui && \
+      # added --legacy-peer-deps to avoid dependency resolution errors with mocha (testing)
+      npm install --legacy-peer-deps && \
+      # Build the bundle as per:
+      # https://github.com/traefik/traefik/blob/84a081054688349fa4e2513599e3bf2395331492/Makefile#L66
+      npm run build:nc && \
+      # cleanup
+      rm -rf node_modules
+
+  traefik:
+    plugin: go
+    source-type: git
+    source-depth: 1
+    source-tag: "v2.9.6"
+    source: https://github.com/traefik/traefik
+
     build-snaps:
       - go
     build-environment:
-      - BUILD_IN_CONTAINER: "false"
+      - GO111MODULE: "on"
+      - CGO_ENABLED: "0"
+      - GOGC: "off"
+      - TRAEFIK_VERSION: "2.9.6"
+
     override-build: |
-      make dist
-      install -D -m755 dist/metaconvert-linux-amd64 ${CRAFT_PART_INSTALL}/opt/mimir/bin/metaconvert
-      install -D -m755 dist/mimir-linux-amd64 ${CRAFT_PART_INSTALL}/opt/mimir/bin/mimir
-      install -D -m755 dist/mimirtool-linux-amd64 ${CRAFT_PART_INSTALL}/opt/mimir/bin/mimirtool
-      install -D -m755 dist/query-tee-linux-amd64 ${CRAFT_PART_INSTALL}/opt/mimir/bin/query-tee
-    organize:
-      opt/mimir/bin/metaconvert: usr/bin/metaconvert
-      opt/mimir/bin/mimir: usr/bin/mimir
-      opt/mimir/bin/mimirtool: usr/bin/mimirtool
-      opt/mimir/bin/query-tee: usr/bin/query-tee
+      CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
+      mkdir -p dist && \
+      # Required to merge non-code components into the final binary such as the web dashboard/UI
+      go generate && \
+      # Build Traefik per https://github.com/traefik/traefik/raw/v2.6.1/script/binary
+      go build -ldflags "-s -w \
+        -X github.com/traefik/traefik/v2/pkg/version.Version=$TRAEFIK_VERSION \
+        -X github.com/traefik/traefik/v2/pkg/version.Codename=$CODENAME \
+        -X github.com/traefik/traefik/v2/pkg/version.BuildDate=$(date -u '+%Y-%m-%d_%I:%M:%S%p')" \
+        -a -installsuffix nocgo -o $CRAFT_PART_INSTALL/traefik ./cmd/traefik
+
+    after:
+      - traefik-frontend
+
+    stage:
+      - traefik
+
+    # TODO: check alertmanager rock for verification
+    # TODO verification steps and testing framework
