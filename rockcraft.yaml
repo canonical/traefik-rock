@@ -5,6 +5,10 @@ version: "2.9.6"
 base: ubuntu:22.04
 license: Apache-2.0
 
+# sources:
+# jnsgruk's traefik dockerfile https://github.com/jnsgruk/traefik-oci-image/blob/main/Dockerfile
+# upstream traefik makefile https://github.com/traefik/traefik/blob/84a081054688349fa4e2513599e3bf2395331492/Makefile
+
 # /
 # ├── bin
 # │   └── traefik
@@ -12,8 +16,8 @@ license: Apache-2.0
 #     └── traefik.yaml
 
 
-entrypoint: ["/bin/traefik"]
-#cmd: ["/traefik"]
+entrypoint: ["bin/traefik"]
+#cmd: []
 
 platforms:
   amd64:
@@ -86,5 +90,15 @@ parts:
     stage:
       - bin/traefik
 
-    # TODO: check alertmanager rock for verification
+  non-root-user:
+    plugin: nil
+    after: [default-config]
+    overlay-script: |
+      # Create a user in the $CRAFT_OVERLAY chroot
+      groupadd -R $CRAFT_OVERLAY -g 1000 traefik
+      useradd -R $CRAFT_OVERLAY -M -r -g traefik -u 1000 traefik
+    override-prime: |
+      craftctl default
+      chown -R 1000:1000 etc/traefik
+
     # TODO verification steps and testing framework

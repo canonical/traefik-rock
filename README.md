@@ -7,12 +7,14 @@ the new version info.
 Once the PR gets merged, a new ROCK is built and published on ghcr.io/canonical/traefik.
 
 
-
 # Manual verification:
+```
+rockcraft -v
 
-`rockcraft -v`
-`docker import ./traefik_2.9.6_amd64.rock trfk`
-`docker run  --rm -d -p 8080:8080 trfk`
+skopeo --insecure-policy copy oci-archive:traefik_2.9.6_amd64.rock docker-daemon:trfk
+
+docker run  --rm -p 8080:8080 trfk
+```
 
 cleanup:
-`docker rmi trfk`
+`docker rmi -f trfk`
