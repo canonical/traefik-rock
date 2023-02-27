@@ -1,5 +1,7 @@
 # traefik-rock
 
+[![Build ROCK](https://github.com/canonical/traefik-rock/actions/workflows/build-rock.yaml/badge.svg)](https://github.com/canonical/traefik-rock/actions/workflows/build-rock.yaml)
+
 Automation for building a ROCK for Traefik. Every fourth hour, the automation checks whether 
 a new release has been cut in the upstream Traefik repo, and if so, creates a pull request with 
 the new version info.
