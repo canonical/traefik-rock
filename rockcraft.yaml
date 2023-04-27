@@ -15,13 +15,14 @@ license: Apache-2.0
 # └── etc
 #     └── traefik.yaml
 
-
-entrypoint: ["bin/traefik"]
-#cmd: []
+services:
+  traefik:
+    command: /bin/traefik
+    override: replace
+    startup: enabled
 
 platforms:
   amd64:
-
 
 parts:
   traefik-frontend:
@@ -62,7 +63,8 @@ parts:
     source: https://github.com/traefik/traefik
 
     build-snaps:
-      - go
+      - go/1.19/stable
+      - yq
     build-environment:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
