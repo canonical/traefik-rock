@@ -1,10 +1,9 @@
 name: traefik
 summary: Traefik in a ROCK.
 description: "Traefik is the a cloud-native application networking stack."
-version: "2.9.6"
+version: "2.10.1"
 base: ubuntu:22.04
 license: Apache-2.0
-
 # sources:
 # jnsgruk's traefik dockerfile https://github.com/jnsgruk/traefik-oci-image/blob/main/Dockerfile
 # upstream traefik makefile https://github.com/traefik/traefik/blob/84a081054688349fa4e2513599e3bf2395331492/Makefile
@@ -14,16 +13,13 @@ license: Apache-2.0
 # │   └── traefik
 # └── etc
 #     └── traefik.yaml
-
 services:
   traefik:
     command: /bin/traefik
     override: replace
     startup: enabled
-
 platforms:
   amd64:
-
 parts:
   traefik-frontend:
     plugin: npm
@@ -31,7 +27,6 @@ parts:
     source-depth: 1
     source-tag: "v2.9.6"
     source: https://github.com/traefik/traefik
-
     npm-node-version: 14.16
     build-packages:
       - nodejs
@@ -46,7 +41,6 @@ parts:
       npm run build:nc && \
       # cleanup
       rm -rf node_modules
-
   default-config:
     plugin: dump
     source: files
@@ -54,23 +48,19 @@ parts:
       traefik.yaml: etc/traefik/traefik.yaml
     stage:
       - etc/traefik/traefik.yaml
-
   traefik:
     plugin: go
     source-type: git
     source-depth: 1
-    source-tag: "v2.9.6"
+    source-tag: "v2.10.1"
     source: https://github.com/traefik/traefik
-
     build-snaps:
-      - go/1.19/stable
-      - yq
+      - go/1.20/stable
     build-environment:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
       - GOGC: "off"
       - TRAEFIK_VERSION: "2.9.6"
-
     override-build: |
       CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
       mkdir -p dist && \
@@ -82,16 +72,12 @@ parts:
         -X github.com/traefik/traefik/v2/pkg/version.Codename=$CODENAME \
         -X github.com/traefik/traefik/v2/pkg/version.BuildDate=$(date -u '+%Y-%m-%d_%I:%M:%S%p')" \
         -a -installsuffix nocgo -o $CRAFT_PART_INSTALL/traefik ./cmd/traefik
-
     after:
       - traefik-frontend
-
     organize:
       traefik: bin/traefik
-
     stage:
       - bin/traefik
-
   non-root-user:
     plugin: nil
     after: [default-config]
@@ -102,5 +88,4 @@ parts:
     override-prime: |
       craftctl default
       chown -R 1000:1000 etc/traefik
-
-    # TODO verification steps and testing framework
+# TODO verification steps and testing framework
