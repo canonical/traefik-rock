@@ -61,6 +61,8 @@ parts:
       - CGO_ENABLED: "0"
       - GOGC: "off"
       - TRAEFIK_VERSION: "2.9.6"
+    build-packages:
+      - yq
     override-build: |
       CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
       mkdir -p dist && \
