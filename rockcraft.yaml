@@ -56,13 +56,12 @@ parts:
     source: https://github.com/traefik/traefik
     build-snaps:
       - go/1.20/stable
+      - yq
     build-environment:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
       - GOGC: "off"
       - TRAEFIK_VERSION: "2.9.6"
-    build-packages:
-      - yq
     override-build: |
       CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
       mkdir -p dist && \
