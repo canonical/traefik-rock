@@ -1,7 +1,7 @@
 name: traefik
 summary: Traefik in a ROCK.
 description: "Traefik is the a cloud-native application networking stack."
-version: "2.10.1"
+version: "2.10.2"
 base: ubuntu:22.04
 license: Apache-2.0
 # sources:
@@ -52,11 +52,10 @@ parts:
     plugin: go
     source-type: git
     source-depth: 1
-    source-tag: "v2.10.1"
+    source-tag: "v2.10.2"
     source: https://github.com/traefik/traefik
     build-snaps:
       - go/1.20/stable
-      - yq
     build-environment:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
