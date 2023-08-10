@@ -79,6 +79,8 @@ parts:
       traefik: bin/traefik
     stage:
       - bin/traefik
+    stage-packages:
+      - ca-certificates
   non-root-user:
     plugin: nil
     after: [default-config]
