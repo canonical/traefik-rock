@@ -25,7 +25,7 @@ parts:
     plugin: npm
     source-type: git
     source-depth: 1
-    source-tag: "v2.9.6"
+    source-tag: "v2.10.2"
     source: https://github.com/traefik/traefik
     npm-node-version: 14.16
     build-packages:
@@ -61,7 +61,7 @@ parts:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
       - GOGC: "off"
-      - TRAEFIK_VERSION: "2.9.6"
+      - TRAEFIK_VERSION: "2.10.2"
     override-build: |
       CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
       mkdir -p dist && \
