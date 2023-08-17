@@ -1,0 +1,22 @@
+name: Update ROCK
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 0,4,8,12,16,20 * * *'
+
+jobs:
+  build:
+    uses: canonical/observability/.github/workflows/rock-update.yaml@main
+    with:
+      rock-name: traefik
+      source-repo: traefik/traefik
+      check-go: true
+      update-script: |
+        # The caller must provide \$application_src and \$rockcraft_yaml
+        #   \$application_src: The root folder of the cloned upstream project
+        #   \$rockcraft_yaml: Path of the rockcraft.yaml to update
+        #
+        ## traefik-frontend dependency
+        source_tag=$(yq .parts.traefik.source-tag)
+        tag="\$source_tag" yq -i '.parts.traefik-frontend.source-tag = strenv(tag)'

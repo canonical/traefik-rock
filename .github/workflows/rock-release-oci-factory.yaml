@@ -1,4 +1,4 @@
-name: Build ROCK
+name: Open a PR to OCI Factory
 
 on:
   workflow_dispatch: {}
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    uses: canonical/observability/.github/workflows/build-rock.yaml@main
+    uses: canonical/observability/.github/workflows/rock-release-oci-factory.yaml@main
     secrets: inherit
     with:
       rock-name: traefik
