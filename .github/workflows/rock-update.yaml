@@ -18,5 +18,5 @@ jobs:
         #   \$rockcraft_yaml: Path of the rockcraft.yaml to update
         #
         ## traefik-frontend dependency
-        source_tag=$(yq .parts.traefik.source-tag)
-        tag="\$source_tag" yq -i '.parts.traefik-frontend.source-tag = strenv(tag)'
+        source_tag=$(yq .parts.traefik.source-tag $rockcraft_yaml)
+        tag="\$source_tag" yq -i '.parts.traefik-frontend.source-tag = strenv(tag)' $rockcraft_yaml
