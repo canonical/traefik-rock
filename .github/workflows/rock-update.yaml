@@ -20,3 +20,6 @@ jobs:
         ## traefik-frontend dependency
         source_tag=$(yq .parts.traefik.source-tag $rockcraft_yaml)
         tag="\$source_tag" yq -i '.parts.traefik-frontend.source-tag = strenv(tag)' $rockcraft_yaml
+        ## traefik environment variable
+        yq -i 'del(.parts.traefik.build-environment.[] | select (.TRAEFIK_VERSION))' $rockcraft_yaml
+        tag="\$source_tag" yq -i '.parts.traefik.build-environment += [{"TRAEFIK_VERSION": strenv(tag)}]' $rockcraft_yaml

@@ -1,7 +1,7 @@
 name: traefik
 summary: Traefik in a ROCK.
 description: "Traefik is the a cloud-native application networking stack."
-version: "2.10.4"
+version: "2.10.6"
 base: ubuntu@22.04
 license: Apache-2.0
 # sources:
@@ -25,7 +25,7 @@ parts:
     plugin: npm
     source-type: git
     source-depth: 1
-    source-tag: "v2.10.4"
+    source-tag: "v2.10.6"
     source: https://github.com/traefik/traefik
     npm-node-version: 14.16
     build-packages:
@@ -52,16 +52,16 @@ parts:
     plugin: go
     source-type: git
     source-depth: 1
-    source-tag: "v2.10.4"
+    source-tag: "v2.10.6"
     source: https://github.com/traefik/traefik
     build-snaps:
-      - go/1.20/stable
       - yq
+      - go/1.21/stable
     build-environment:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
       - GOGC: "off"
-      - TRAEFIK_VERSION: "2.10.4"
+      - TRAEFIK_VERSION: "2.10.6"
     override-build: |
       CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
       mkdir -p dist && \
@@ -81,12 +81,10 @@ parts:
       - bin/traefik
     stage-packages:
       - ca-certificates
-
   # We moved this here because: https://github.com/canonical/rockcraft/issues/343
   ca-certs:
     plugin: nil
     stage-packages: [ca-certificates]
-
   non-root-user:
     plugin: nil
     after: [default-config]
@@ -97,7 +95,6 @@ parts:
     override-prime: |
       craftctl default
       chown -R 1000:1000 etc/traefik
-
   deb-security-manifest:
     plugin: nil
     after:

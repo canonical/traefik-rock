@@ -2,7 +2,7 @@ name: traefik
 summary: Traefik in a ROCK.
 description: "Traefik is the a cloud-native application networking stack."
 version: "2.10.5"
-base: ubuntu:22.04
+base: ubuntu@22.04
 license: Apache-2.0
 # sources:
 # jnsgruk's traefik dockerfile https://github.com/jnsgruk/traefik-oci-image/blob/main/Dockerfile
@@ -61,7 +61,7 @@ parts:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
       - GOGC: "off"
-      - TRAEFIK_VERSION: "2.10.4"
+      - TRAEFIK_VERSION: "2.10.5"
     override-build: |
       CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
       mkdir -p dist && \
@@ -95,4 +95,15 @@ parts:
     override-prime: |
       craftctl default
       chown -R 1000:1000 etc/traefik
+  deb-security-manifest:
+    plugin: nil
+    after:
+      - traefik
+      - traefik-frontend
+      - ca-certs
+    override-prime: |
+      set -x
+      mkdir -p $CRAFT_PRIME/usr/share/rocks/
+      (echo "# os-release" && cat /etc/os-release && echo "# dpkg-query" && dpkg-query --admindir=$CRAFT_PRIME/var/lib/dpkg/ -f '${db:Status-Abbrev},${binary:Package},${Version},${source:Package},${Source:Version}\n' -W) > $CRAFT_PRIME/usr/share/rocks/dpkg.query
+
 # TODO verification steps and testing framework
