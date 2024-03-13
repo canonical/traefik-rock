@@ -1,7 +1,7 @@
 name: traefik
 summary: Traefik in a ROCK.
 description: "Traefik is the a cloud-native application networking stack."
-version: "2.10.6"
+version: "2.11.0"
 base: ubuntu@22.04
 license: Apache-2.0
 # sources:
@@ -25,7 +25,7 @@ parts:
     plugin: npm
     source-type: git
     source-depth: 1
-    source-tag: "v2.10.6"
+    source-tag: "v2.11.0"
     source: https://github.com/traefik/traefik
     npm-node-version: 14.16
     build-packages:
@@ -52,16 +52,16 @@ parts:
     plugin: go
     source-type: git
     source-depth: 1
-    source-tag: "v2.10.6"
+    source-tag: "v2.11.0"
     source: https://github.com/traefik/traefik
     build-snaps:
       - yq
-      - go/1.21/stable
+      - go/1.22/stable
     build-environment:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
       - GOGC: "off"
-      - TRAEFIK_VERSION: "2.10.6"
+      - TRAEFIK_VERSION: v2.11.0
     override-build: |
       CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
       mkdir -p dist && \
@@ -105,5 +105,4 @@ parts:
       set -x
       mkdir -p $CRAFT_PRIME/usr/share/rocks/
       (echo "# os-release" && cat /etc/os-release && echo "# dpkg-query" && dpkg-query --admindir=$CRAFT_PRIME/var/lib/dpkg/ -f '${db:Status-Abbrev},${binary:Package},${Version},${source:Package},${Source:Version}\n' -W) > $CRAFT_PRIME/usr/share/rocks/dpkg.query
-
 # TODO verification steps and testing framework
