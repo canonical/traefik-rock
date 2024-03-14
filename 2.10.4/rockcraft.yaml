@@ -85,7 +85,7 @@ parts:
   # We moved this here because: https://github.com/canonical/rockcraft/issues/343
   ca-certs:
     plugin: nil
-    stage-packages: [ca-certificates]
+    overlay-packages: [ca-certificates]
 
   non-root-user:
     plugin: nil
