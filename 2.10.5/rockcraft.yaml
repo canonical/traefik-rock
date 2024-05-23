@@ -1,5 +1,5 @@
 name: traefik
-summary: Traefik in a ROCK.
+summary: Traefik in a rock.
 description: "Traefik is the a cloud-native application networking stack."
 version: "2.10.5"
 base: ubuntu@22.04
