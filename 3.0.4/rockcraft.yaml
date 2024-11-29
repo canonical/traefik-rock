@@ -28,6 +28,7 @@ parts:
     source-tag: "v3.0.4"
     source: https://github.com/traefik/traefik
     npm-node-version: 14.16
+    npm-include-node: true
     build-packages:
       - nodejs
       - npm
