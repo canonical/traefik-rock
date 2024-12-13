@@ -20,6 +20,7 @@ services:
     startup: enabled
 platforms:
   amd64:
+  arm64:
 parts:
   traefik-frontend:
     plugin: npm
@@ -27,7 +28,8 @@ parts:
     source-depth: 1
     source-tag: "v3.2.2"
     source: https://github.com/traefik/traefik
-    npm-node-version: 14.16
+    npm-node-version: "14.16"
+    npm-include-node: true
     build-packages:
       - nodejs
       - npm
