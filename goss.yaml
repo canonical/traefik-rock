@@ -1,0 +1,7 @@
+process:
+  alertmanager:
+    running: true
+http:
+  healthy:
+    status: 200
+    url: http://localhost:9093/-/healthy
