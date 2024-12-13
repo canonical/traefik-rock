@@ -1,0 +1,7 @@
+process:
+  traefik:
+    running: true
+http:
+  version:
+    status: 200
+    url: http://localhost/version
