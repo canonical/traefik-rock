@@ -1,7 +1,7 @@
 process:
-  alertmanager:
+  traefik:
     running: true
 http:
-  healthy:
+  version:
     status: 200
-    url: http://localhost:9093/-/healthy
+    url: http://localhost/version
