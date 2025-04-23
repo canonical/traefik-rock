@@ -1,0 +1,108 @@
+name: traefik
+summary: Traefik in a rock.
+description: "Traefik is the a cloud-native application networking stack."
+version: "3.3.2"
+base: ubuntu@22.04
+license: Apache-2.0
+# sources:
+# jnsgruk's traefik dockerfile https://github.com/jnsgruk/traefik-oci-image/blob/main/Dockerfile
+# upstream traefik makefile https://github.com/traefik/traefik/blob/84a081054688349fa4e2513599e3bf2395331492/Makefile
+
+# /
+# ├── bin
+# │   └── traefik
+# └── etc
+#     └── traefik.yaml
+services:
+  traefik:
+    command: /bin/traefik
+    override: replace
+    startup: enabled
+platforms:
+  amd64:
+parts:
+  traefik-frontend:
+    plugin: npm
+    source-type: git
+    source-depth: 1
+    source-tag: "v3.3.2"
+    source: https://github.com/traefik/traefik
+    npm-node-version: 14.16
+    build-packages:
+      - nodejs
+      - npm
+    override-build: |
+      npm install -g yarn && \
+      cd ./webui && \
+      # added --legacy-peer-deps to avoid dependency resolution errors with mocha (testing)
+      npm install --legacy-peer-deps && \
+      # Build the bundle as per:
+      # https://github.com/traefik/traefik/blob/84a081054688349fa4e2513599e3bf2395331492/Makefile#L66
+      npm run build:nc && \
+      # cleanup
+      rm -rf node_modules
+  default-config:
+    plugin: dump
+    source: files
+    organize:
+      traefik.yaml: etc/traefik/traefik.yaml
+    stage:
+      - etc/traefik/traefik.yaml
+  traefik:
+    plugin: go
+    source-type: git
+    source-depth: 1
+    source-tag: "v3.3.2"
+    source: https://github.com/traefik/traefik
+    build-snaps:
+      - yq
+      - go/1.23/stable
+    build-environment:
+      - GO111MODULE: "on"
+      - CGO_ENABLED: "0"
+      - GOGC: "off"
+      - TRAEFIK_VERSION: v3.3.2
+    override-build: |
+      CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
+      mkdir -p dist && \
+      # Required to merge non-code components into the final binary such as the web dashboard/UI
+      go generate && \
+      # Build Traefik per https://github.com/traefik/traefik/raw/v2.6.1/script/binary
+      go build -ldflags "-s -w \
+        -X github.com/traefik/traefik/v2/pkg/version.Version=$TRAEFIK_VERSION \
+        -X github.com/traefik/traefik/v2/pkg/version.Codename=$CODENAME \
+        -X github.com/traefik/traefik/v2/pkg/version.BuildDate=$(date -u '+%Y-%m-%d_%I:%M:%S%p')" \
+        -a -installsuffix nocgo -o $CRAFT_PART_INSTALL/traefik ./cmd/traefik
+    after:
+      - traefik-frontend
+    organize:
+      traefik: bin/traefik
+    stage:
+      - bin/traefik
+    stage-packages:
+      - ca-certificates
+  # We moved this here because: https://github.com/canonical/rockcraft/issues/343
+  ca-certs:
+    plugin: nil
+    overlay-packages: [ca-certificates]
+  non-root-user:
+    plugin: nil
+    after: [default-config]
+    overlay-script: |
+      # Create a user in the $CRAFT_OVERLAY chroot
+      groupadd -R $CRAFT_OVERLAY -g 1000 traefik
+      useradd -R $CRAFT_OVERLAY -M -r -g traefik -u 1000 traefik
+    override-prime: |
+      craftctl default
+      chown -R 1000:1000 etc/traefik
+  deb-security-manifest:
+    plugin: nil
+    after:
+      - traefik
+      - traefik-frontend
+      - ca-certs
+    override-prime: |
+      set -x
+      mkdir -p $CRAFT_PRIME/usr/share/rocks/
+      (echo "# os-release" && cat /etc/os-release && echo "# dpkg-query" && dpkg-query --admindir=$CRAFT_PRIME/var/lib/dpkg/ -f '${db:Status-Abbrev},${binary:Package},${Version},${source:Package},${Source:Version}\n' -W) > $CRAFT_PRIME/usr/share/rocks/dpkg.query
+# TODO verification steps and testing framework
