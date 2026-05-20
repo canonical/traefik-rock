@@ -45,13 +45,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install rockcraft and setup LXD
-        run: |
-          sudo snap install rockcraft --classic --channel=latest/candidate
-          sudo snap install lxd
-          sudo lxd init --auto
-          sudo usermod -aG lxd "$USER"
-          newgrp lxd
+      - name: Setup LXD
+        uses: canonical/setup-lxd@main
+
+      - name: Install rockcraft
+        run: sudo snap install rockcraft --classic --channel=latest/candidate
 
       - name: Pack and test rocks
         run: |
