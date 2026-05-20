@@ -60,9 +60,6 @@ parts:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
       - GOGC: "off"
-      - GOGC: "100"
-      - GOFLAGS: "-p=2"
-      - GOMAXPROCS: "2"
       - TRAEFIK_VERSION: v2.11.0
     override-build: |
       CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
