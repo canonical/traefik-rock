@@ -10,7 +10,96 @@ on:
       - main
 
 jobs:
-  pull-request:
-    name: PR
-    uses: canonical/observability/.github/workflows/rock-pull-request.yaml@v0
-    secrets: inherit
+  detect-changes:
+    name: Determine modified rocks
+    runs-on: ubuntu-24.04
+    outputs:
+      versions: ${{ steps.changed-versions.outputs.versions }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find rockcraft.yaml changes
+        id: changed-files
+        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
+        with:
+          files: "**/rockcraft.yaml"
+
+      - name: Extract the versions
+        id: changed-versions
+        run: |
+          versions=""
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            rock_version="$(dirname $file)"
+            versions="${versions:+$versions }$rock_version"
+          done
+          echo "versions=$versions"
+          echo "versions=$versions" >> $GITHUB_OUTPUT
+
+  build-and-test:
+    name: Pack and test rocks
+    runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.versions != ''
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install rockcraft
+        run: sudo snap install rockcraft --classic --channel=latest/candidate
+
+      - name: Pack and test rocks
+        run: |
+          for version in ${{ needs.detect-changes.outputs.versions }}; do
+            echo "::group::Packing rock for version $version"
+            cd "$version"
+            rockcraft pack
+            echo "::endgroup::"
+
+            echo "::group::Testing rock for version $version"
+            rock_file=$(ls *.rock)
+            # Load rock into docker
+            sudo rockcraft.skopeo --insecure-policy copy \
+              "oci-archive:$rock_file" \
+              docker-daemon:traefik-test:latest
+            # Run container in background
+            docker run -d --name traefik-test -p 8080:8080 traefik-test:latest
+            # Wait for traefik to start (up to 30s)
+            for i in $(seq 1 30); do
+              if docker exec traefik-test pebble services 2>/dev/null | grep -q "active"; then
+                echo "Traefik service is active"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "ERROR: Traefik failed to start within 30s"
+                docker logs traefik-test
+                exit 1
+              fi
+              sleep 1
+            done
+            # Verify port is listening
+            for i in $(seq 1 10); do
+              if curl -sf http://localhost:8080 > /dev/null 2>&1 || curl -sf -o /dev/null -w "%{http_code}" http://localhost:8080 | grep -qE "^[2-4]"; then
+                echo "Traefik is responding on port 8080"
+                break
+              fi
+              if [ "$i" -eq 10 ]; then
+                echo "ERROR: Traefik not responding on port 8080"
+                docker logs traefik-test
+                exit 1
+              fi
+              sleep 2
+            done
+            # Cleanup
+            docker rm -f traefik-test
+            docker rmi traefik-test:latest
+            rockcraft clean
+            cd ..
+            echo "::endgroup::"
+          done
+
+      - name: Upload rock artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rocks
+          path: "**/traefik_*.rock"
