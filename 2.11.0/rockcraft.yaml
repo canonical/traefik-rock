@@ -2,7 +2,7 @@ name: traefik
 summary: Traefik in a rock.
 description: "Traefik is the a cloud-native application networking stack."
 version: "2.11.0"
-base: ubuntu@22.04
+base: ubuntu@26.04
 license: Apache-2.0
 # sources:
 # jnsgruk's traefik dockerfile https://github.com/jnsgruk/traefik-oci-image/blob/main/Dockerfile
@@ -22,20 +22,19 @@ platforms:
   amd64:
 parts:
   traefik-frontend:
-    plugin: npm
+    plugin: nil
     source-type: git
     source-depth: 1
     source-tag: "v2.11.0"
     source: https://github.com/traefik/traefik
-    npm-node-version: 14.16
-    build-packages:
-      - nodejs
-      - npm
+    build-snaps:
+      - node/20/stable
     override-build: |
       npm install -g yarn && \
       cd ./webui && \
       # added --legacy-peer-deps to avoid dependency resolution errors with mocha (testing)
-      npm install --legacy-peer-deps && \
+      npm install --legacy-peer-deps --ignore-scripts && \
+      export PATH="$PWD/node_modules/.bin:$PATH" && \
       # Build the bundle as per:
       # https://github.com/traefik/traefik/blob/84a081054688349fa4e2513599e3bf2395331492/Makefile#L66
       npm run build:nc && \
@@ -61,6 +60,9 @@ parts:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
       - GOGC: "off"
+      - GOGC: "100"
+      - GOFLAGS: "-p=2"
+      - GOMAXPROCS: "2"
       - TRAEFIK_VERSION: v2.11.0
     override-build: |
       CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
@@ -89,7 +91,10 @@ parts:
     plugin: nil
     after: [default-config]
     overlay-script: |
-      # Create a user in the $CRAFT_OVERLAY chroot
+      # The ubuntu@26.04 overlay may already contain entries at GID/UID 1000
+      # after base packages are set up. Remove any such entries first.
+      sed -i '/^[^:]*:[^:]*:1000:/d' $CRAFT_OVERLAY/etc/group
+      sed -i '/^[^:]*:[^:]*:1000:/d' $CRAFT_OVERLAY/etc/passwd
       groupadd -R $CRAFT_OVERLAY -g 1000 traefik
       useradd -R $CRAFT_OVERLAY -M -r -g traefik -u 1000 traefik
     override-prime: |
