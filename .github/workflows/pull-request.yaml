@@ -45,8 +45,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install rockcraft
-        run: sudo snap install rockcraft --classic --channel=latest/candidate
+      - name: Install rockcraft and setup LXD
+        run: |
+          sudo snap install rockcraft --classic --channel=latest/candidate
+          sudo snap install lxd
+          sudo lxd init --auto
+          sudo usermod -aG lxd "$USER"
+          newgrp lxd
 
       - name: Pack and test rocks
         run: |
@@ -90,12 +95,6 @@ jobs:
               fi
               sleep 2
             done
-            # Cleanup
-            docker rm -f traefik-test
-            docker rmi traefik-test:latest
-            rockcraft clean
-            cd ..
-            echo "::endgroup::"
           done
 
       - name: Upload rock artifacts
