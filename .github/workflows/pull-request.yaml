@@ -51,6 +51,9 @@ jobs:
       - name: Install rockcraft
         run: sudo snap install rockcraft --classic --channel=latest/candidate
 
+      - name: Install goss
+        run: curl -fsSL https://goss.rocks/install | sh
+
       - name: Pack and test rocks
         run: |
           for version in ${{ needs.detect-changes.outputs.versions }}; do
@@ -65,38 +68,9 @@ jobs:
             sudo rockcraft.skopeo --insecure-policy copy \
               "oci-archive:$rock_file" \
               docker-daemon:traefik-test:latest
-            # Run container in background
-            docker run -d --name traefik-test -p 8080:8080 traefik-test:latest
-            # Wait for traefik to start (up to 30s)
-            for i in $(seq 1 30); do
-              if docker exec traefik-test pebble services 2>/dev/null | grep -q "active"; then
-                echo "Traefik service is active"
-                break
-              fi
-              if [ "$i" -eq 30 ]; then
-                echo "ERROR: Traefik failed to start within 30s"
-                docker logs traefik-test
-                exit 1
-              fi
-              sleep 1
-            done
-            # Verify port is listening
-            for i in $(seq 1 10); do
-              if curl -sf http://localhost:8080 > /dev/null 2>&1 || curl -sf -o /dev/null -w "%{http_code}" http://localhost:8080 | grep -qE "^[2-4]"; then
-                echo "Traefik is responding on port 8080"
-                break
-              fi
-              if [ "$i" -eq 10 ]; then
-                echo "ERROR: Traefik not responding on port 8080"
-                docker logs traefik-test
-                exit 1
-              fi
-              sleep 2
-            done
+            # Run goss tests
+            GOSS_FILE="$GITHUB_WORKSPACE/goss.yaml" \
+            GOSS_OPTS="--retry-timeout=60s" \
+              dgoss run traefik-test:latest
+            echo "::endgroup::"
           done
-
-      - name: Upload rock artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: rocks
-          path: "**/traefik_*.rock"
