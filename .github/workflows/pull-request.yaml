@@ -19,22 +19,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find rockcraft.yaml changes
+      - name: Find changed files in version directories
         id: changed-files
         uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
         with:
-          files: "**/rockcraft.yaml"
+          files: |
+            **/rockcraft.yaml
+            **/files/**
 
       - name: Extract the versions
         id: changed-versions
-        run: |
-          versions=""
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            rock_version="$(dirname $file)"
-            versions="${versions:+$versions }$rock_version"
-          done
-          echo "versions=$versions"
-          echo "versions=$versions" >> $GITHUB_OUTPUT
+        run: ./scripts/extract-versions.sh ${{ steps.changed-files.outputs.all_changed_files }}
 
   build-and-test:
     name: Pack and test rocks
@@ -56,21 +51,5 @@ jobs:
 
       - name: Pack and test rocks
         run: |
-          for version in ${{ needs.detect-changes.outputs.versions }}; do
-            echo "::group::Packing rock for version $version"
-            cd "$version"
-            rockcraft pack
-            echo "::endgroup::"
-
-            echo "::group::Testing rock for version $version"
-            rock_file=$(ls *.rock)
-            # Load rock into docker
-            sudo rockcraft.skopeo --insecure-policy copy \
-              "oci-archive:$rock_file" \
-              docker-daemon:traefik-test:latest
-            # Run goss tests
-            GOSS_FILES_PATH="$GITHUB_WORKSPACE" \
-            GOSS_OPTS="--retry-timeout=60s" \
-              dgoss run traefik-test:latest
-            echo "::endgroup::"
-          done
+          GOSS_FILES_PATH="$GITHUB_WORKSPACE" \
+            ./scripts/pack-and-test.sh ${{ needs.detect-changes.outputs.versions }}
