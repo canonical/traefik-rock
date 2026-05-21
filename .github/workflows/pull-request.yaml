@@ -69,7 +69,7 @@ jobs:
               "oci-archive:$rock_file" \
               docker-daemon:traefik-test:latest
             # Run goss tests
-            GOSS_FILE="$GITHUB_WORKSPACE/goss.yaml" \
+            GOSS_FILES_PATH="$GITHUB_WORKSPACE" \
             GOSS_OPTS="--retry-timeout=60s" \
               dgoss run traefik-test:latest
             echo "::endgroup::"
