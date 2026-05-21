@@ -1,14 +1,161 @@
 name: Open a PR to OCI Factory
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
-  workflow_dispatch: {}
   push:
     branches:
       - main
 
 jobs:
-  build:
-    uses: canonical/observability/.github/workflows/rock-release-oci-factory.yaml@v0
-    secrets: inherit
-    with:
-      rock-name: traefik
+  detect-changes:
+    name: Determine modified rocks
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.changed-versions.outputs.versions }}
+    steps:
+      - name: Checkout the rock repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Find changed rockcraft.yaml files
+        id: changed-files
+        uses: tj-actions/changed-files@2f7c5bfce28377bc069a65ba478de0a74aa0ca32 # v46.0.1
+        with:
+          files: "**/rockcraft.yaml"
+
+      - name: Extract the versions
+        id: changed-versions
+        run: |
+          versions=""
+          for file in ${{ steps.changed-files.outputs.all_changed_and_modified_files }}; do
+            version="$(dirname $file)"
+            versions="${versions:+$versions }$version"
+          done
+          echo "versions=$versions"
+          echo "versions=$versions" >> $GITHUB_OUTPUT
+
+  build-and-release:
+    name: Pack, test and release to OCI Factory
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.versions != ''
+    steps:
+      - name: Checkout the rock repository
+        uses: actions/checkout@v4
+        with:
+          path: rock
+
+      - name: Setup LXD
+        uses: canonical/setup-lxd@main
+
+      - name: Install dependencies
+        run: |
+          sudo snap install rockcraft --classic
+          sudo snap install yq
+          curl -fsSL https://goss.rocks/install | sh
+
+      - name: Pack and test rocks
+        run: |
+          cd rock
+          for version in ${{ needs.detect-changes.outputs.versions }}; do
+            echo "::group::Packing rock for version $version"
+            cd "$version"
+            rockcraft pack
+            cd ..
+            echo "::endgroup::"
+
+            echo "::group::Testing rock for version $version"
+            rock_file=$(ls $version/*.rock)
+            sudo rockcraft.skopeo --insecure-policy copy \
+              "oci-archive:$rock_file" \
+              docker-daemon:traefik-test:latest
+            GOSS_FILES_PATH="$GITHUB_WORKSPACE/rock" \
+            GOSS_OPTS="--retry-timeout=60s" \
+              dgoss run traefik-test:latest
+            docker rmi traefik-test:latest
+            echo "::endgroup::"
+          done
+
+      - name: Fork sync and clone OCI Factory
+        env:
+          GH_TOKEN: ${{ secrets.IS_DEVOPS_BOT_TOKEN }}
+        run: |
+          gh repo sync --force is-devops-bot/oci-factory || \
+            gh repo fork canonical/oci-factory --clone=false
+          gh repo sync --force is-devops-bot/oci-factory
+
+      - name: Clone the OCI Factory fork
+        uses: actions/checkout@v4
+        with:
+          path: oci-factory
+          repository: is-devops-bot/oci-factory
+          token: ${{ secrets.IS_DEVOPS_BOT_TOKEN }}
+
+      - name: Generate image.yaml
+        id: generate-manifest
+        run: |
+          cd rock
+          sha="$(git rev-parse HEAD)"
+          eol=$(date -d "+1 year" -u +"%Y-%m-%dT00:00:00Z")
+          manifest_file="$GITHUB_WORKSPACE/oci-factory/oci/traefik/image.yaml"
+
+          # Ensure the manifest file exists
+          mkdir -p "$(dirname "$manifest_file")"
+          if [ ! -f "$manifest_file" ]; then
+            printf "version: 1\nupload: []\n" > "$manifest_file"
+          fi
+
+          for version in ${{ needs.detect-changes.outputs.versions }}; do
+            # Read base from rockcraft.yaml (handle bare base)
+            base=$(yq '.base' "$version/rockcraft.yaml" | sed 's/ubuntu@//')
+            if [[ "$base" == "bare" ]]; then
+              base=$(yq '.["build-base"]' "$version/rockcraft.yaml" | sed 's/ubuntu@//')
+            fi
+
+            # Remove existing entry for this version if present
+            yq -i "del(.upload[] | select(.directory == \"$version\"))" "$manifest_file"
+
+            # Build the new upload entry
+            tmp_entry=$(mktemp --suffix=.yaml)
+            echo '{}' > "$tmp_entry"
+            yq -i ".source = \"${{ github.repository }}\"" "$tmp_entry"
+            yq -i ".commit = \"$sha\"" "$tmp_entry"
+            yq -i ".directory = \"$version\"" "$tmp_entry"
+            yq -i ".release.\"${version}-${base}\".end-of-life = \"$eol\"" "$tmp_entry"
+            yq -i ".release.\"${version}-${base}\".risks = [\"stable\"]" "$tmp_entry"
+
+            # Append to the manifest
+            yq -i ".upload += [load(\"$tmp_entry\")]" "$manifest_file"
+            rm "$tmp_entry"
+          done
+
+          echo "now_epoch=$(date -d now +%s)" >> $GITHUB_OUTPUT
+
+      - name: Commit to the fork
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: "oci/traefik/image.yaml"
+          cwd: "./oci-factory"
+          message: "chore: Add new traefik releases"
+          new_branch: "update-${{ steps.generate-manifest.outputs.now_epoch }}"
+          push: "origin update-${{ steps.generate-manifest.outputs.now_epoch }} --force"
+
+      - name: Open a PR from the fork to upstream
+        env:
+          GH_TOKEN: ${{ secrets.IS_DEVOPS_BOT_TOKEN }}
+        run: |
+          cd $GITHUB_WORKSPACE/oci-factory
+          BRANCH="update-${{ steps.generate-manifest.outputs.now_epoch }}"
+          EXISTING_PR="$(gh pr list --repo canonical/oci-factory --head "is-devops-bot:${BRANCH}" --json url -q '.[0].url')"
+          if [[ -n "${EXISTING_PR}" ]]; then
+            echo "PR already exists: ${EXISTING_PR}"
+          else
+            gh pr create --repo canonical/oci-factory \
+              --head "is-devops-bot:${BRANCH}" \
+              --title "chore: Add new traefik releases" \
+              --body "Automated PR to add new traefik rock releases from ${{ github.repository }}."
+          fi

@@ -60,10 +60,11 @@ jobs:
             echo "::group::Packing rock for version $version"
             cd "$version"
             rockcraft pack
+            cd ..
             echo "::endgroup::"
 
             echo "::group::Testing rock for version $version"
-            rock_file=$(ls *.rock)
+            rock_file=$(ls $version/*.rock)
             # Load rock into docker
             sudo rockcraft.skopeo --insecure-policy copy \
               "oci-archive:$rock_file" \
