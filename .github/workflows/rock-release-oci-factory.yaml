@@ -49,7 +49,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo snap install rockcraft --classic
+          sudo snap install rockcraft --classic  --channel=latest/candidate
           sudo snap install yq
           curl -fsSL https://goss.rocks/install | sh
 
