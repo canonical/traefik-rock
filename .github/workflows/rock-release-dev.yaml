@@ -30,18 +30,11 @@ jobs:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
 
-      - name: Find changed rockcraft.yaml files
+      - name: Find changed files in version directories
         id: changed-versions
         run: |
-          # Compare branch against main to find changed rockcraft.yaml files
-          changed_files=$(git diff --name-only origin/main..HEAD -- '**/rockcraft.yaml' || true)
-          versions=""
-          for file in $changed_files; do
-            version="$(dirname $file)"
-            versions="${versions:+$versions }$version"
-          done
-          echo "versions=$versions"
-          echo "versions=$versions" >> $GITHUB_OUTPUT
+          changed_files=$(git diff --name-only origin/main..HEAD -- '**/rockcraft.yaml' '**/files/**' || true)
+          ./scripts/extract-versions.sh $changed_files
 
   build-and-publish:
     name: Pack, test and publish
@@ -64,29 +57,16 @@ jobs:
           curl -fsSL https://goss.rocks/install | sh
 
       - name: Pack, test and push rocks
+        env:
+          GOSS_FILES_PATH: ${{ github.workspace }}
         run: |
+          ./scripts/pack-and-test.sh ${{ needs.detect-changes.outputs.versions }}
+
+          # Push each rock to GHCR
           for version in ${{ needs.detect-changes.outputs.versions }}; do
-            echo "::group::Packing rock for version $version"
-            cd "$version"
-            rockcraft pack
-            cd ..
-            echo "::endgroup::"
-
-            echo "::group::Testing rock for version $version"
-            rock_file=$(ls $version/*.rock)
-            sudo rockcraft.skopeo --insecure-policy copy \
-              "oci-archive:$rock_file" \
-              docker-daemon:traefik-test:latest
-            GOSS_FILES_PATH="$GITHUB_WORKSPACE" \
-            GOSS_OPTS="--retry-timeout=60s" \
-              dgoss run traefik-test:latest
-            docker rmi traefik-test:latest
-            echo "::endgroup::"
-
-            echo "::group::Pushing rock for version $version to GHCR"
+            rock_file=$(ls "$version"/*.rock)
             sudo rockcraft.skopeo --insecure-policy copy \
               "oci-archive:$rock_file" \
               "docker://ghcr.io/canonical/traefik:dev" \
               --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
-            echo "::endgroup::"
           done
