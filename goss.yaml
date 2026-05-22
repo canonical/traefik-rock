@@ -1,0 +1,6 @@
+process:
+  traefik:
+    running: true
+port:
+  tcp6:8080:
+    listening: true
