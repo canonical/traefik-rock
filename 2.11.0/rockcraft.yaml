@@ -90,8 +90,8 @@ parts:
     overlay-script: |
       # ubuntu@26.04 base overlay ships an 'ubuntu' user/group at UID/GID 1000.
       # Remove them so we can create the traefik user at that ID.
+      # userdel also removes the primary group if no other members exist.
       chroot $CRAFT_OVERLAY userdel -r ubuntu
-      chroot $CRAFT_OVERLAY groupdel ubuntu
       groupadd -R $CRAFT_OVERLAY -g 1000 traefik
       useradd -R $CRAFT_OVERLAY -M -r -g traefik -u 1000 traefik
     override-prime: |
