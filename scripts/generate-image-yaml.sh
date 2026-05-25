@@ -37,6 +37,7 @@ for version in "$@"; do
   yq -i ".release.\"${version}-${base}\".risks = [\"stable\"]" "$tmp_entry"
 
   # Append to the manifest
-  yq -i ".upload += [load(\"$tmp_entry\")]" "$MANIFEST_FILE"
+  yq eval-all 'select(fileIndex == 0).upload += [select(fileIndex == 1)] | select(fileIndex == 0)' "$MANIFEST_FILE" "$tmp_entry" > "${MANIFEST_FILE}.tmp"
+  mv "${MANIFEST_FILE}.tmp" "$MANIFEST_FILE"
   rm "$tmp_entry"
 done
