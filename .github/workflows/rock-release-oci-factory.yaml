@@ -82,4 +82,4 @@ jobs:
           GH_TOKEN: ${{ secrets.IS_DEVOPS_BOT_TOKEN }}
           OCI_FACTORY_DIR: ${{ github.workspace }}/oci-factory
           SOURCE_REPO: ${{ github.repository }}
-        run: ./scripts/open-oci-factory-pr.sh "update-${{ steps.generate-manifest.outputs.now_epoch }}"
+        run: ./rock/scripts/open-oci-factory-pr.sh "update-${{ steps.generate-manifest.outputs.now_epoch }}"
