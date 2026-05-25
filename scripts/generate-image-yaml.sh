@@ -24,20 +24,30 @@ for version in "$@"; do
     base=$(yq '.["build-base"]' "$version/rockcraft.yaml" | sed 's/ubuntu@//')
   fi
 
-  # Remove existing entry for this version if present
-  yq -i "del(.upload[] | select(.directory == \"$version\"))" "$MANIFEST_FILE"
+  release_key="${version}-${base}"
 
-  # Build the new upload entry in the working directory (avoids snap /tmp confinement)
-  tmp_entry="$(pwd)/.tmp_entry_$$.yaml"
-  echo '{}' > "$tmp_entry"
-  yq -i ".source = \"${REPO}\"" "$tmp_entry"
-  yq -i ".commit = \"${SHA}\"" "$tmp_entry"
-  yq -i ".directory = \"$version\"" "$tmp_entry"
-  yq -i ".release.\"${version}-${base}\".end-of-life = \"$eol\"" "$tmp_entry"
-  yq -i ".release.\"${version}-${base}\".risks = [\"stable\"]" "$tmp_entry"
+  # Check if an entry for this version already exists
+  existing=$(yq ".upload[] | select(.directory == \"$version\")" "$MANIFEST_FILE")
 
-  # Append to the manifest
-  yq eval-all 'select(fileIndex == 0).upload += [select(fileIndex == 1)] | select(fileIndex == 0)' "$MANIFEST_FILE" "$tmp_entry" > "${MANIFEST_FILE}.tmp"
-  mv "${MANIFEST_FILE}.tmp" "$MANIFEST_FILE"
-  rm "$tmp_entry"
+  if [[ -n "$existing" ]]; then
+    # Update existing entry in place
+    yq -i "(.upload[] | select(.directory == \"$version\")).source = \"${REPO}\"" "$MANIFEST_FILE"
+    yq -i "(.upload[] | select(.directory == \"$version\")).commit = \"${SHA}\"" "$MANIFEST_FILE"
+    yq -i "(.upload[] | select(.directory == \"$version\")).release.\"${release_key}\".end-of-life = \"$eol\"" "$MANIFEST_FILE"
+    yq -i "(.upload[] | select(.directory == \"$version\")).release.\"${release_key}\".risks = [\"stable\"]" "$MANIFEST_FILE"
+  else
+    # Build a new entry and append
+    tmp_entry="$(pwd)/.tmp_entry_$$.yaml"
+    echo '{}' > "$tmp_entry"
+    yq -i ".source = \"${REPO}\"" "$tmp_entry"
+    yq -i ".commit = \"${SHA}\"" "$tmp_entry"
+    yq -i ".directory = \"$version\"" "$tmp_entry"
+    yq -i ".release.\"${release_key}\".end-of-life = \"$eol\"" "$tmp_entry"
+    yq -i ".release.\"${release_key}\".risks = [\"stable\"]" "$tmp_entry"
+
+    # Append to the manifest
+    yq eval-all 'select(fileIndex == 0).upload += [select(fileIndex == 1)] | select(fileIndex == 0)' "$MANIFEST_FILE" "$tmp_entry" > "${MANIFEST_FILE}.tmp"
+    mv "${MANIFEST_FILE}.tmp" "$MANIFEST_FILE"
+    rm "$tmp_entry"
+  fi
 done
