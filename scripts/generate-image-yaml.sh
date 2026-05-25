@@ -27,8 +27,8 @@ for version in "$@"; do
   # Remove existing entry for this version if present
   yq -i "del(.upload[] | select(.directory == \"$version\"))" "$MANIFEST_FILE"
 
-  # Build the new upload entry
-  tmp_entry=$(mktemp --suffix=.yaml)
+  # Build the new upload entry in the working directory (avoids snap /tmp confinement)
+  tmp_entry="$(pwd)/.tmp_entry_$$.yaml"
   echo '{}' > "$tmp_entry"
   yq -i ".source = \"${REPO}\"" "$tmp_entry"
   yq -i ".commit = \"${SHA}\"" "$tmp_entry"
