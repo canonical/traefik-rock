@@ -28,7 +28,7 @@ parts:
     source-tag: "v2.11.46"
     source: https://github.com/traefik/traefik
     build-snaps:
-      - node/20/stable
+      - node/22/stable
     override-build: |
       npm install -g yarn && \
       cd ./webui && \
