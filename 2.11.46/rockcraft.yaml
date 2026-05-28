@@ -54,15 +54,14 @@ parts:
     source-tag: "v2.11.46"
     source: https://github.com/traefik/traefik
     build-snaps:
-      - yq
-      - go/1.22/stable
+      - go/1.25/stable
     build-environment:
       - GO111MODULE: "on"
       - CGO_ENABLED: "0"
       - GOGC: "off"
       - TRAEFIK_VERSION: v2.11.46
     override-build: |
-      CODENAME=$(yq e '.blocks[] | select(.name=="Release").task.env_vars[] | select(.name=="CODENAME").value' ./.semaphore/semaphore.yml) && \
+      CODENAME=$(grep -oP 'Codename\s*=\s*"\K[^"]+' pkg/version/version.go) && \
       mkdir -p dist && \
       # Required to merge non-code components into the final binary such as the web dashboard/UI
       go generate && \
