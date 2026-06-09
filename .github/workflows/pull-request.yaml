@@ -32,10 +32,21 @@ jobs:
         run: ./scripts/extract-versions.sh ${{ steps.changed-files.outputs.all_changed_files }}
 
   build-and-test:
-    name: Pack and test rocks
-    runs-on: ubuntu-24.04
+    name: Pack and test rocks on ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.runner-labels }}
     needs: [detect-changes]
     if: needs.detect-changes.outputs.versions != ''
+    strategy:
+      fail-fast: true
+      matrix:
+        # Define 'platform' as an object containing both metadata and labels
+        platform:
+          - name: Ubuntu amd64 24.04
+            runner-labels: [ubuntu-24.04]
+          - name: Ubuntu arm64 24.04
+            runner-labels: [ubuntu-24.04-arm]
+          - name: Ubuntu s390x 24.04
+            runner-labels: [self-hosted-linux-s390x-noble-medium]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
