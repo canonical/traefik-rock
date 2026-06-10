@@ -34,13 +34,14 @@ parts:
     override-build: |
       npm install -g yarn
       cd ./webui
-      # added --legacy-peer-deps to avoid dependency resolution errors with mocha (testing)
-      if [ "$CRAFT_TARGET_ARCH" = "s390x" ]; then
-        npm install sass --save-dev
-        npm install --legacy-peer-deps --ignore-scripts --overrides='{"sass-embedded": "$sass"}'
-      else
-        npm install --legacy-peer-deps --ignore-scripts
+      # Fix for s390x: Force npm & yarn to intercept deep sass-embedded packages
+      # and replace them globally with the pure JavaScript sass engine
+      if [ "$CRAFT_ARCH_BUILD_FOR" = "s390x" ]; then
+        npm pkg set overrides.sass-embedded="npm:sass@^1.70.0"
+        npm pkg set resolutions.sass-embedded="npm:sass@^1.70.0"
       fi
+      # added --legacy-peer-deps to avoid dependency resolution errors with mocha (testing)
+      npm install --legacy-peer-deps --ignore-scripts
       export PATH="$PWD/node_modules/.bin:$PATH"
       # Build the bundle as per:
       # https://github.com/traefik/traefik/blob/84a081054688349fa4e2513599e3bf2395331492/Makefile#L66
