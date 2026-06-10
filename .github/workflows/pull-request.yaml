@@ -31,6 +31,19 @@ jobs:
         id: changed-versions
         run: ./scripts/extract-versions.sh ${{ steps.changed-files.outputs.all_changed_files }}
 
+      - name: Format versions as JSON array
+        id: format-json
+        env:
+          RAW_VERSIONS: ${{ steps.changed-versions.outputs.versions }}
+        run: |
+          if [ -z "$RAW_VERSIONS" ]; then
+            echo "versions=[]" >> "$GITHUB_OUTPUT"
+          else
+            # Safely converts space-separated versions into a strict JSON array
+            JSON_ARRAY=$(echo "$RAW_VERSIONS" | xargs jq -n -c '$ARGS.positional' --args)
+            echo "versions=$JSON_ARRAY" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-test:
     name: Pack and test ${{ matrix.version }} on ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.runner-labels }}
