@@ -82,6 +82,7 @@ jobs:
 
       - name: Install yq
         run: sudo snap install yq
+
       - name: Setup LXD
         uses: canonical/setup-lxd@main
 
@@ -152,6 +153,6 @@ jobs:
 
       - name: Pack and test rocks
         if: steps.check-arch.outputs.supported == 'true'
-        run:
+        run: |
           GOSS_FILES_PATH="$GITHUB_WORKSPACE" \
             ./scripts/pack-and-test.sh ${{ matrix.version }}
