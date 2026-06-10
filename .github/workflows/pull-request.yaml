@@ -14,7 +14,7 @@ jobs:
     name: Determine modified rocks
     runs-on: ubuntu-24.04
     outputs:
-      versions: ${{ steps.changed-versions.outputs.versions }}
+      versions: ${{ steps.format-json.outputs.versions }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
