@@ -32,14 +32,19 @@ parts:
     build-snaps:
       - node/22/stable
     override-build: |
-      npm install -g yarn && \
-      cd ./webui && \
+      npm install -g yarn
+      cd ./webui
       # added --legacy-peer-deps to avoid dependency resolution errors with mocha (testing)
-      npm install --legacy-peer-deps --ignore-scripts && \
-      export PATH="$PWD/node_modules/.bin:$PATH" && \
+      if [ "$CRAFT_TARGET_ARCH" = "s390x" ]; then
+        npm install sass --save-dev
+        npm install --legacy-peer-deps --ignore-scripts --overrides='{"sass-embedded": "$sass"}'
+      else
+        npm install --legacy-peer-deps --ignore-scripts
+      fi
+      export PATH="$PWD/node_modules/.bin:$PATH"
       # Build the bundle as per:
       # https://github.com/traefik/traefik/blob/84a081054688349fa4e2513599e3bf2395331492/Makefile#L66
-      npm run build:nc && \
+      npm run build:nc
       # cleanup
       rm -rf node_modules
   default-config:
