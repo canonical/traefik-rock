@@ -32,20 +32,23 @@ jobs:
         run: ./scripts/extract-versions.sh ${{ steps.changed-files.outputs.all_changed_files }}
 
   build-and-test:
-    name: Pack and test rocks on ${{ matrix.platform.name }}
+    name: Pack and test ${{ matrix.version }} on ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.runner-labels }}
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.versions != ''
+    if: needs.detect-changes.outputs.versions != '' && needs.detect-changes.outputs.versions != '[]'
     strategy:
       fail-fast: true
       matrix:
-        # Define 'platform' as an object containing both metadata and labels
+        version: ${{ fromJson(needs.detect-changes.outputs.versions) }}
         platform:
-          - name: Ubuntu amd64 24.04
+          - name: amd64
+            arch: amd64
             runner-labels: [ubuntu-24.04]
-          - name: Ubuntu arm64 24.04
+          - name: arm64
+            arch: arm64
             runner-labels: [ubuntu-24.04-arm]
-          - name: Ubuntu s390x 24.04
+          - name: s390x
+            arch: s390x
             runner-labels: [self-hosted-linux-s390x-noble-medium]
     steps:
       - name: Checkout repository
@@ -64,16 +67,31 @@ jobs:
         with:
           detached: true
 
+      - name: Install yq
+        run: sudo snap install yq
       - name: Setup LXD
         uses: canonical/setup-lxd@main
 
       - name: Install rockcraft
         run: sudo snap install rockcraft --classic --channel=latest/candidate
 
-      - name: Install goss
-      #   run: curl -fsSL https://goss.rocks/install | sh
+      # Gatekeeper step: verifying if this specific version folder targets this CPU architecture
+      - name: Check architecture compatibility
+        id: check-arch
         run: |
-          uname -a
+          cd "${{ matrix.version }}"
+          if ! rockcraft expand-extensions | yq '.platforms | keys | .[]' | grep -q "^${{ matrix.platform.arch }}$"; then
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping ${{ matrix.platform.arch }} for version ${{ matrix.version }} (not supported after evaluation)"
+          else
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install goss
+        if: steps.check-arch.outputs.supported == 'true'
+        run: |
+          # this is the same script as in https://goss.rocks/install
+          # with the arch updated to "$(uname -m)" when it is not arm/arm64/amd64.
           LATEST_URL="https://github.com/goss-org/goss/releases/latest"
           LATEST_EFFECTIVE=$(curl -s -L -o /dev/null ${LATEST_URL} -w '%{url_effective}')
           LATEST=${LATEST_EFFECTIVE##*/}
@@ -120,6 +138,7 @@ jobs:
           echo "dgoss $DGOSS_VER has been installed to $DGOSS_INSTALL_LOC"
 
       - name: Pack and test rocks
-        run: |
+        if: steps.check-arch.outputs.supported == 'true'
+        run:
           GOSS_FILES_PATH="$GITHUB_WORKSPACE" \
-            ./scripts/pack-and-test.sh ${{ needs.detect-changes.outputs.versions }}
+            ./scripts/pack-and-test.sh ${{ matrix.version }}
