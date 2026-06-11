@@ -54,7 +54,7 @@ jobs:
         run: |
           sudo snap install rockcraft --classic  --channel=latest/candidate
           # Install goss for testing
-          curl -fsSL https://goss.rocks/install | sh
+          ./scripts/install-goss.sh
 
       - name: Pack, test and push rocks
         env:
