@@ -24,7 +24,7 @@ jobs:
         env:
           VERSIONS: ${{ inputs.versions }}
         run: |
-          JSON_ARRAY=$(echo "$VERSIONS" | tr ',' '\n' | jq -R . | jq -c -s .)
+          JSON_ARRAY=$(echo "$VERSIONS" | tr ',' '\n' | jq -R 'gsub("^\\s+|\\s+$"; "")' | jq -c -s 'map(select(length>0))')
           echo "versions=$JSON_ARRAY" >> "$GITHUB_OUTPUT"
 
   build-and-test:
