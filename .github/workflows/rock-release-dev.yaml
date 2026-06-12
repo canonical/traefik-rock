@@ -22,7 +22,7 @@ jobs:
     name: Determine modified rocks
     runs-on: ubuntu-latest
     outputs:
-      versions: ${{ steps.changed-versions.outputs.versions }}
+      versions: ${{ steps.format-json.outputs.versions }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,37 +36,106 @@ jobs:
           changed_files=$(git diff --name-only origin/main..HEAD -- '**/rockcraft.yaml' '**/files/**' || true)
           ./scripts/extract-versions.sh $changed_files
 
-  build-and-publish:
-    name: Pack, test and publish
-    runs-on: ubuntu-latest
+      - name: Format versions as JSON array
+        id: format-json
+        env:
+          RAW_VERSIONS: ${{ steps.changed-versions.outputs.versions }}
+        run: |
+          if [ -z "$RAW_VERSIONS" ]; then
+            echo "versions=[]" >> "$GITHUB_OUTPUT"
+          else
+            JSON_ARRAY=$(echo "$RAW_VERSIONS" | xargs jq -n -c '$ARGS.positional' --args)
+            echo "versions=$JSON_ARRAY" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-test:
+    name: Pack and test ${{ matrix.version }} on ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.runner-labels }}
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.versions != ''
+    if: needs.detect-changes.outputs.versions != '' && needs.detect-changes.outputs.versions != '[]'
+    strategy:
+      fail-fast: true
+      matrix:
+        version: ${{ fromJson(needs.detect-changes.outputs.versions) }}
+        platform:
+          - name: amd64
+            arch: amd64
+            runner-labels: [ubuntu-latest]
+          - name: arm64
+            arch: arm64
+            runner-labels: [ubuntu-24.04-arm]
+          - name: s390x
+            arch: s390x
+            runner-labels: [self-hosted-linux-s390x-noble-medium]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
 
+      - name: Install yq
+        run: sudo snap install yq
+
       - name: Setup LXD
         uses: canonical/setup-lxd@main
 
-      - name: Install dependencies
-        run: |
-          sudo snap install rockcraft --classic  --channel=latest/candidate
-          # Install goss for testing
-          curl -fsSL https://goss.rocks/install | sh
+      - name: Install rockcraft
+        run: sudo snap install rockcraft --classic --channel=latest/candidate
 
-      - name: Pack, test and push rocks
+      - name: Check architecture compatibility
+        id: check-arch
+        run: |
+          cd "${{ matrix.version }}"
+          if ! rockcraft expand-extensions | yq '.platforms | keys | .[]' | grep -q "^${{ matrix.platform.arch }}$"; then
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping ${{ matrix.platform.arch }} for version ${{ matrix.version }} (not supported after evaluation)"
+          else
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install goss
+        if: steps.check-arch.outputs.supported == 'true'
+        run: ./scripts/install-goss.sh
+
+      - name: Pack and test rock
+        if: steps.check-arch.outputs.supported == 'true'
         env:
           GOSS_FILES_PATH: ${{ github.workspace }}
-        run: |
-          ./scripts/pack-and-test.sh ${{ needs.detect-changes.outputs.versions }}
+        run: ./scripts/pack-and-test.sh ${{ matrix.version }}
 
-          # Push each rock to GHCR
-          for version in ${{ needs.detect-changes.outputs.versions }}; do
-            rock_file=$(ls "$version"/*.rock)
-            sudo rockcraft.skopeo --insecure-policy copy \
-              "oci-archive:$rock_file" \
-              "docker://ghcr.io/canonical/traefik:dev" \
-              --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}"
+      - name: Upload rock artifact
+        if: steps.check-arch.outputs.supported == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rock-${{ matrix.version }}-${{ matrix.platform.arch }}
+          path: ${{ matrix.version }}/*.rock
+          if-no-files-found: error
+
+  assemble-and-publish:
+    name: Assemble and publish ${{ matrix.version }}
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-and-test]
+    if: needs.detect-changes.outputs.versions != '' && needs.detect-changes.outputs.versions != '[]'
+    strategy:
+      matrix:
+        version: ${{ fromJson(needs.detect-changes.outputs.versions) }}
+    steps:
+      - name: Download all rock artifacts for ${{ matrix.version }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rock-${{ matrix.version }}-*
+          merge-multiple: true
+          path: rocks/
+
+      - name: Install buildah
+        run: sudo apt-get update && sudo apt-get install -y buildah
+
+      - name: Assemble multi-arch manifest and push to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | buildah login ghcr.io -u "${{ github.actor }}" --password-stdin
+          buildah manifest create multi-arch-rock
+          for rock in rocks/*.rock; do
+            buildah manifest add multi-arch-rock "oci-archive:$rock"
           done
+          buildah manifest push --format oci --all multi-arch-rock \
+            "docker://ghcr.io/canonical/traefik:dev"

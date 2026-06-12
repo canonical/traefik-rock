@@ -14,7 +14,7 @@ jobs:
     name: Determine modified rocks
     runs-on: ubuntu-24.04
     outputs:
-      versions: ${{ steps.changed-versions.outputs.versions }}
+      versions: ${{ steps.format-json.outputs.versions }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,14 +31,57 @@ jobs:
         id: changed-versions
         run: ./scripts/extract-versions.sh ${{ steps.changed-files.outputs.all_changed_files }}
 
+      - name: Format versions as JSON array
+        id: format-json
+        env:
+          RAW_VERSIONS: ${{ steps.changed-versions.outputs.versions }}
+        run: |
+          if [ -z "$RAW_VERSIONS" ]; then
+            echo "versions=[]" >> "$GITHUB_OUTPUT"
+          else
+            # Safely converts space-separated versions into a strict JSON array
+            JSON_ARRAY=$(echo "$RAW_VERSIONS" | xargs jq -n -c '$ARGS.positional' --args)
+            echo "versions=$JSON_ARRAY" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-test:
-    name: Pack and test rocks
-    runs-on: ubuntu-24.04
+    name: Pack and test ${{ matrix.version }} on ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.runner-labels }}
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.versions != ''
+    if: needs.detect-changes.outputs.versions != '' && needs.detect-changes.outputs.versions != '[]'
+    strategy:
+      fail-fast: true
+      matrix:
+        version: ${{ fromJson(needs.detect-changes.outputs.versions) }}
+        platform:
+          - name: amd64
+            arch: amd64
+            runner-labels: [ubuntu-24.04]
+          - name: arm64
+            arch: arm64
+            runner-labels: [ubuntu-24.04-arm]
+          - name: s390x
+            arch: s390x
+            runner-labels: [self-hosted-linux-s390x-noble-medium]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up tmate session (self-hosted)
+        if: runner.debug == 1 && runner.environment == 'self-hosted'
+        uses: canonical/action-tmate@main
+        with:
+          detached: true
+          timeout-minutes: 60
+
+      - name: Set up tmate session (GitHub-hosted)
+        if: runner.debug == 1 && runner.environment == 'github-hosted'
+        uses: mxschmitt/action-tmate@v3
+        with:
+          detached: true
+
+      - name: Install yq
+        run: sudo snap install yq
 
       - name: Setup LXD
         uses: canonical/setup-lxd@main
@@ -46,10 +89,24 @@ jobs:
       - name: Install rockcraft
         run: sudo snap install rockcraft --classic --channel=latest/candidate
 
+      # Gatekeeper step: verifying if this specific version folder targets this CPU architecture
+      - name: Check architecture compatibility
+        id: check-arch
+        run: |
+          cd "${{ matrix.version }}"
+          if ! rockcraft expand-extensions | yq '.platforms | keys | .[]' | grep -q "^${{ matrix.platform.arch }}$"; then
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping ${{ matrix.platform.arch }} for version ${{ matrix.version }} (not supported after evaluation)"
+          else
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install goss
-        run: curl -fsSL https://goss.rocks/install | sh
+        if: steps.check-arch.outputs.supported == 'true'
+        run: ./scripts/install-goss.sh
 
       - name: Pack and test rocks
+        if: steps.check-arch.outputs.supported == 'true'
         run: |
           GOSS_FILES_PATH="$GITHUB_WORKSPACE" \
-            ./scripts/pack-and-test.sh ${{ needs.detect-changes.outputs.versions }}
+            ./scripts/pack-and-test.sh ${{ matrix.version }}

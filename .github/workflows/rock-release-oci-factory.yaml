@@ -13,32 +13,86 @@ on:
         type: string
 
 jobs:
-  build-and-release:
-    name: Pack, test and release to OCI Factory
+  prepare:
+    name: Prepare versions
     runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.format-json.outputs.versions }}
+    steps:
+      - name: Format versions as JSON array
+        id: format-json
+        env:
+          VERSIONS: ${{ inputs.versions }}
+        run: |
+          JSON_ARRAY=$(echo "$VERSIONS" | tr ',' '\n' | jq -R 'gsub("^\\s+|\\s+$"; "")' | jq -c -s 'map(select(length>0))')
+          echo "versions=$JSON_ARRAY" >> "$GITHUB_OUTPUT"
+
+  build-and-test:
+    name: Pack and test ${{ matrix.version }} on ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.runner-labels }}
+    needs: [prepare]
+    strategy:
+      fail-fast: true
+      matrix:
+        version: ${{ fromJson(needs.prepare.outputs.versions) }}
+        platform:
+          - name: amd64
+            arch: amd64
+            runner-labels: [ubuntu-latest]
+          - name: arm64
+            arch: arm64
+            runner-labels: [ubuntu-24.04-arm]
+          - name: s390x
+            arch: s390x
+            runner-labels: [self-hosted-linux-s390x-noble-medium]
     steps:
       - name: Checkout the rock repository
         uses: actions/checkout@v4
         with:
           path: rock
 
+      - name: Install yq
+        run: sudo snap install yq
+
       - name: Setup LXD
         uses: canonical/setup-lxd@main
 
-      - name: Install dependencies
-        run: |
-          sudo snap install rockcraft --classic  --channel=latest/candidate
-          sudo snap install yq
-          curl -fsSL https://goss.rocks/install | sh
+      - name: Install rockcraft
+        run: sudo snap install rockcraft --classic --channel=latest/candidate
 
-      - name: Pack and test rocks
+      - name: Check architecture compatibility
+        id: check-arch
+        run: |
+          cd "rock/${{ matrix.version }}"
+          if ! rockcraft expand-extensions | yq '.platforms | keys | .[]' | grep -q "^${{ matrix.platform.arch }}$"; then
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping ${{ matrix.platform.arch }} for version ${{ matrix.version }} (not supported after evaluation)"
+          else
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install goss
+        if: steps.check-arch.outputs.supported == 'true'
+        run: ./rock/scripts/install-goss.sh
+
+      - name: Pack and test rock
+        if: steps.check-arch.outputs.supported == 'true'
+        env:
+          GOSS_FILES_PATH: ${{ github.workspace }}/rock
         run: |
           cd rock
-          versions="${VERSIONS//,/ }"
-          GOSS_FILES_PATH="$GITHUB_WORKSPACE/rock" \
-            ./scripts/pack-and-test.sh $versions
-        env:
-          VERSIONS: ${{ inputs.versions }}
+          ./scripts/pack-and-test.sh ${{ matrix.version }}
+
+  release:
+    name: Open PR to OCI Factory
+    runs-on: ubuntu-latest
+    needs: [prepare, build-and-test]
+    if: needs.prepare.outputs.versions != '[]'
+    steps:
+      - name: Checkout the rock repository
+        uses: actions/checkout@v4
+        with:
+          path: rock
 
       - name: Fork sync and clone OCI Factory
         env:
