@@ -4,11 +4,9 @@ set -euo pipefail
 # Installs goss and dgoss to GOSS_DST (default: /usr/local/bin).
 #
 # This is a modified version of the official https://goss.rocks/install script.
-# The main change is the arch detection logic: the official script only handles
-# amd64 and arm64, so it falls back to the raw `uname -m` output for other arches
-# (e.g. s390x). This is intentional — goss release assets use the kernel's own
-# naming for non-x86/arm platforms.
-# See: https://github.com/goss-org/goss/issues/1065
+# Recent goss releases are published as per-arch tarballs, while older releases
+# used raw binary assets. Keep the arch detection explicit and fall back to the
+# legacy asset layout when needed so pinned older versions still install.
 
 LATEST_URL="https://github.com/goss-org/goss/releases/latest"
 LATEST_EFFECTIVE=$(curl -s -L -o /dev/null "${LATEST_URL}" -w '%{url_effective}')
@@ -31,17 +29,36 @@ DGOSS_INSTALL_LOC="${GOSS_DST%/}/dgoss"
 
 touch "${INSTALL_LOC}" || { echo "ERROR: Cannot write to ${GOSS_DST}; set GOSS_DST elsewhere or use sudo"; exit 1; }
 
-arch=""
+release_arch=""
+legacy_arch=""
 case "$(uname -m)" in
-    x86_64)          arch="amd64" ;;
-    aarch32)         arch="arm" ;;
-    aarch64 | arm64) arch="arm64" ;;
-    *)               arch="$(uname -m)" ;;
+    x86_64)                  release_arch="x86_64"; legacy_arch="amd64" ;;
+    i386 | i686)             release_arch="i386"; legacy_arch="i386" ;;
+    aarch64 | arm64)         release_arch="arm64"; legacy_arch="arm64" ;;
+    armv6l | armv7l | aarch32) release_arch="armv6"; legacy_arch="arm" ;;
+    ppc64le)                 release_arch="ppc64le"; legacy_arch="ppc64le" ;;
+    s390x)                   release_arch="s390x"; legacy_arch="s390x" ;;
+    *)
+        release_arch="$(uname -m)"
+        legacy_arch="$(uname -m)"
+        ;;
 esac
 
-url="https://github.com/goss-org/goss/releases/download/${GOSS_VER}/goss-linux-${arch}"
-echo "Downloading ${url}"
-curl -fsSL "${url}" -o "${INSTALL_LOC}"
+version_no_v="${GOSS_VER#v}"
+archive_url="https://github.com/goss-org/goss/releases/download/${GOSS_VER}/goss_${version_no_v}_linux_${release_arch}.tar.gz"
+legacy_url="https://github.com/goss-org/goss/releases/download/${GOSS_VER}/goss-linux-${legacy_arch}"
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "${tmpdir}"' EXIT
+
+echo "Downloading ${archive_url}"
+if curl -fsSL "${archive_url}" -o "${tmpdir}/goss.tar.gz"; then
+    tar -xzf "${tmpdir}/goss.tar.gz" -C "${tmpdir}" goss
+    install -m 0755 "${tmpdir}/goss" "${INSTALL_LOC}"
+else
+    echo "Falling back to legacy asset ${legacy_url}"
+    curl -fsSL "${legacy_url}" -o "${INSTALL_LOC}"
+    chmod +rx "${INSTALL_LOC}"
+fi
 chmod +rx "${INSTALL_LOC}"
 echo "goss ${GOSS_VER} installed to ${INSTALL_LOC}"
 "${INSTALL_LOC}" --version
